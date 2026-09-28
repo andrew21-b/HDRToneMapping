@@ -1,3 +1,6 @@
+import os
+import cv2
+import numpy as np
 from load_image import load_sdr_image, load_hdr_image
 from evaluation_metrics import calculate_ssim, calculate_psnr, calculate_delta_e
 from tone_mapping_algorithms import reinhard_tone_mapping, drago_tone_mapping, adaptive_logarithmic_mapping
@@ -24,3 +27,14 @@ delta_e_alm = calculate_delta_e(sdr_img, alm_img)
 print(f"Reinhard Tone Mapping - PSNR: {psnr_reinhard:.2f}, SSIM: {ssim_reinhard:.2f}, Delta E: {delta_e_reinhard:.2f}")
 print(f"Drago Tone Mapping - PSNR: {psnr_drago:.2f}, SSIM: {ssim_drago:.2f}, Delta E: {delta_e_drago:.2f}")
 print(f"Adaptive Logarithmic Mapping - PSNR: {psnr_alm:.2f}, SSIM: {ssim_alm:.2f}, Delta E: {delta_e_alm:.2f}")
+
+
+def save_result(image, file_name):
+    os.makedirs("results", exist_ok=True)
+    output = (np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)
+    cv2.imwrite(os.path.join("results", file_name), cv2.cvtColor(output, cv2.COLOR_RGB2BGR))
+
+
+save_result(reinhard_img, "reinhard.png")
+save_result(drago_img, "drago.png")
+save_result(alm_img, "adaptive_logarithmic.png")
