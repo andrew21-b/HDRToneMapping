@@ -1,30 +1,55 @@
-from image_io import load_sdr_image, load_hdr_image, save_image
-from evaluation_metrics import calculate_ssim, calculate_psnr, calculate_delta_e
-from tone_mapping_algorithms import reinhard_tone_mapping, drago_tone_mapping, adaptive_logarithmic_mapping
+"""
+Tone map an HDR image with three operators and compare each result with an
+SDR reference image.
 
-sdr_img = load_sdr_image("images/Desk_sdr.png")
-hdr_img = load_hdr_image("images/Desk.exr")
+For each operator this script:
+1. tone maps the linear HDR image to linear display values from 0 to 1,
+2. encodes them with the sRGB transfer function, the same encoding as the
+   reference PNG,
+3. rounds them to 8 bits, exactly as they are saved,
+4. prints PSNR, SSIM and Delta E 2000 against the reference,
+5. saves the image to the results folder.
 
-reinhard_img = reinhard_tone_mapping(hdr_img)
-drago_img = drago_tone_mapping(hdr_img)
-alm_img = adaptive_logarithmic_mapping(hdr_img)
+It also saves results/comparison.jpg, which shows the reference and the three
+results side by side.
+"""
+from evaluation_metrics import calculate_delta_e, calculate_psnr, calculate_ssim
+from image_io import (encode_srgb, load_hdr_image, load_sdr_image, quantize_to_8bit,
+                      save_image, save_side_by_side)
+from tone_mapping_algorithms import drago_tone_mapping, logarithmic_mapping, reinhard_tone_mapping
 
-psnr_reinhard = calculate_psnr(sdr_img, reinhard_img)
-ssim_reinhard = calculate_ssim(sdr_img, reinhard_img)
-delta_e_reinhard = calculate_delta_e(sdr_img, reinhard_img)
+HDR_PATH = "images/Desk.exr"
+REFERENCE_PATH = "images/Desk_sdr.png"
+RESULTS_FOLDER = "results"
 
-psnr_drago = calculate_psnr(sdr_img, drago_img)
-ssim_drago = calculate_ssim(sdr_img, drago_img)
-delta_e_drago = calculate_delta_e(sdr_img, drago_img)
+# (name printed in the table, output file name, tone mapping function)
+OPERATORS = [
+    ("Reinhard", "reinhard.png", reinhard_tone_mapping),
+    ("Drago", "drago.png", drago_tone_mapping),
+    ("Logarithmic", "logarithmic.png", logarithmic_mapping),
+]
 
-psnr_alm = calculate_psnr(sdr_img, alm_img)
-ssim_alm = calculate_ssim(sdr_img, alm_img)
-delta_e_alm = calculate_delta_e(sdr_img, alm_img)
 
-print(f"Reinhard Tone Mapping - PSNR: {psnr_reinhard:.2f}, SSIM: {ssim_reinhard:.2f}, Delta E: {delta_e_reinhard:.2f}")
-print(f"Drago Tone Mapping - PSNR: {psnr_drago:.2f}, SSIM: {ssim_drago:.2f}, Delta E: {delta_e_drago:.2f}")
-print(f"Adaptive Logarithmic Mapping - PSNR: {psnr_alm:.2f}, SSIM: {ssim_alm:.2f}, Delta E: {delta_e_alm:.2f}")
+def main():
+    hdr_image = load_hdr_image(HDR_PATH)
+    reference_image = load_sdr_image(REFERENCE_PATH)
+    comparison_images = [reference_image]
 
-save_image(reinhard_img, "results/reinhard.png")
-save_image(drago_img, "results/drago.png")
-save_image(alm_img, "results/adaptive_logarithmic.png")
+    print(f"{'Operator':<12} {'PSNR (dB)':>10} {'SSIM':>7} {'Delta E 2000':>13}")
+    for name, file_name, tone_map in OPERATORS:
+        linear_result = tone_map(hdr_image)
+        result = quantize_to_8bit(encode_srgb(linear_result))
+
+        psnr = calculate_psnr(reference_image, result)
+        ssim = calculate_ssim(reference_image, result)
+        delta_e = calculate_delta_e(reference_image, result)
+        print(f"{name:<12} {psnr:>10.2f} {ssim:>7.3f} {delta_e:>13.2f}")
+
+        save_image(result, f"{RESULTS_FOLDER}/{file_name}")
+        comparison_images.append(result)
+
+    save_side_by_side(comparison_images, f"{RESULTS_FOLDER}/comparison.jpg")
+
+
+if __name__ == "__main__":
+    main()
